@@ -31,14 +31,7 @@
     try { _savedSkinUrl = localStorage.getItem('webamp-saved-skin-url'); } catch(e){}
     try { if(_savedSkinUrl && _savedSkinUrl.includes('Winamp5_Classified')){ _savedSkinUrl = 'skins/Winamp5_Classified_v5.5.wsz'; try { localStorage.setItem('webamp-saved-skin-url', _savedSkinUrl); } catch(e){} } } catch(e){}
     const _skins = [
-            {name: "Green Dimension V2", url: "Green Dimension V2.wsz"},
-            {name: "Internet Archive", url: "Internet Archive.wsz"},
-            {name: "Mac OSX v1.5 (Aqua)", url: "Mac OSX v1.5 (Aqua).wsz"},
-            {name: "TopazAmp", url: "TopazAmp.wsz"},
-            {name: "Vizor", url: "Vizor.wsz"},
-            {name: "XMMS Turquoise", url: "XMMS Turquoise.wsz"},
-            {name: "Zaxon Remake", url: "Zaxon Remake.wsz"},
-            {name: "Winamp5 Classified", url: "skins/Winamp5_Classified_v5.5.wsz"}
+            {name: "Winamp5 Classified", url: "skins/Winamp5_Classified_v5.5.wsz"},
         ];
     const webamp = new Webamp({
         availableSkins: _skins,
@@ -321,7 +314,7 @@
             });
         } catch(e){}
         try {
-            webamp.store.dispatch({type:'ENABLE_MILKDROP', open:true});
+            webamp.store.dispatch({type:'ENABLE_MILKDROP', open:false});
             webamp.store.dispatch({type:'SET_MILKDROP_DESKTOP', enabled:true});
         } catch(e){}
     });
