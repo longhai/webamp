@@ -284,10 +284,23 @@
                     const host = location.hostname;
                     if(!/\.github\.io$/.test(host)) return null;
                     const user = host.split('.')[0];
+                    // SUA LOI API: truoc day dir = parts.slice(0,-1) luon bo
+                    // phan tu cuoi, nen khi URL la /webamp/ (index.html
+                    // an) thi dir thanh rong, bo qua repo longhai/webamp
+                    // va chi hoi nham longhai/longhai.github.io/contents/mp3
+                    // -> 404 nhu log ban gui. Gio: neu URL ket thuc bang /
+                    // thi dir la toan bo parts, neu cuoi la ten file co dau
+                    // cham thi moi bo ten file, neu khong thi giu nguyen.
                     const parts = location.pathname.split('/').filter(Boolean);
-                    const dir = parts.slice(0, -1);
+                    let dir;
+                    if(location.pathname.endsWith('/')) dir = parts;
+                    else if(parts.length && parts[parts.length-1].includes('.')) dir = parts.slice(0, -1);
+                    else dir = parts;
                     const cands = [];
-                    if(dir.length >= 1) cands.push({repo: user + '/' + dir[0], path: dir.slice(1).concat(['mp3']).join('/')});
+                    if(dir.length >= 1){
+                        cands.push({repo: user + '/' + dir[0], path: dir.slice(1).concat(['mp3']).join('/')});
+                        if(dir.slice(1).length) cands.push({repo: user + '/' + dir[0], path: 'mp3'});
+                    }
                     cands.push({repo: user + '/' + user + '.github.io', path: dir.concat(['mp3']).join('/')});
                     for(const c of cands){
                         try {
