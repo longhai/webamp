@@ -9,7 +9,26 @@
 <body>
 <div id="app"></div>
 <script src="webamp.bundle.min.js"></script>
-<script src="butterchurn.min.js"></script>
+<script>
+    // CANH BAO Canvas2D willReadFrequently: day khong phai loi, chi la
+    // Chrome goi y cho nhanh khi Butterchurn doc anh tu canvas 2D bang
+    // getImageData nhieu lan. Shim nay dat willReadFrequently:true cho
+    // moi canvas 2D truoc khi Butterchurn nap, de tat canh bao va doc
+    // anh nhanh hon, khong sua file butterchurn.min.js goc.
+    (function(){
+        try {
+            const orig = HTMLCanvasElement.prototype.getContext;
+            HTMLCanvasElement.prototype.getContext = function(type, options){
+                if(type === '2d'){
+                    options = options || {};
+                    if(!('willReadFrequently' in options)) options.willReadFrequently = true;
+                }
+                return orig.call(this, type, options);
+            };
+        } catch(e){}
+    })();
+    </script>
+    <script src="butterchurn.min.js"></script>
 <script src="butterchurnPresets.min.js"></script>
 <script>
     const app = document.getElementById("app")
@@ -24,6 +43,7 @@
     // da chon vao localStorage, khi mo trang lai se tu nap lai skin do.
     let _savedSkinUrl = null;
     try { _savedSkinUrl = localStorage.getItem('webamp-saved-skin-url'); } catch(e){}
+    try { if(_savedSkinUrl && _savedSkinUrl.includes('Winamp5_Classified')){ _savedSkinUrl = 'skins/Winamp5_Classified_v5.5.wsz'; try { localStorage.setItem('webamp-saved-skin-url', _savedSkinUrl); } catch(e){} } } catch(e){}
     const _skins = [
             {name: "Green Dimension V2", url: "Green Dimension V2.wsz"},
             {name: "Internet Archive", url: "Internet Archive.wsz"},
@@ -32,7 +52,7 @@
             {name: "Vizor", url: "Vizor.wsz"},
             {name: "XMMS Turquoise", url: "XMMS Turquoise.wsz"},
             {name: "Zaxon Remake", url: "Zaxon Remake.wsz"},
-            {name: "Winamp5 Classified", url: "Winamp5_Classified_v5.5_0_3h53.wsz"}
+            {name: "Winamp5 Classified", url: "skins/Winamp5_Classified_v5.5.wsz"}
         ];
     // FIX MILKDROP DEN: ban toi gian khong nap Butterchurn va preset,
     // nen Milkdrop khong co gi de ve, canvas den thui. Ban nay nhung san
@@ -344,6 +364,35 @@
                     } else loadSaved();
                 } catch(e){ loadSaved(); }
             })();
+        } catch(e){}
+        // AN NHAC WEB KHI LOAD NHAC MAY: ban chon chi hien nhac may khi
+        // load tu may tinh. Nhac may load qua nut ADD / keo tha / Eject
+        // trong Webamp se co URL dang blob: (trinh duyet tao ra tu file
+        // tren may, khong phai URL tren web). Moi khi playlist xuat hien
+        // 1 track blob: thi xoa het cac track khong phai blob: (tuc la
+        // nhac web tu thu muc mp3 / songs.json) khoi playlist, chi giu
+        // lai nhac may. Khong xoa danh sach web da luu trong localStorage,
+        // nen muon xem lai nhac web thi chi can tai lai trang: nhac web
+        // se tu nap lai, nhac may se mat vi trinh duyet khong nho duoc
+        // duong dan file tren may.
+        try {
+            webamp.store.subscribe(() => {
+                try {
+                    const st = webamp.store.getState();
+                    const order = st.playlist && st.playlist.trackOrder ? st.playlist.trackOrder : [];
+                    if(!order.length) return;
+                    const media = st.media || {};
+                    const isLocal = (id) => {
+                        const m = media[id];
+                        return m && m.url && typeof m.url === 'string' && m.url.startsWith('blob:');
+                    };
+                    const localIds = order.filter(isLocal);
+                    if(!localIds.length) return;
+                    if(order.length === localIds.length) return;
+                    const webIds = order.filter(id => !isLocal(id));
+                    if(webIds.length) webamp.store.dispatch({type:'REMOVE_TRACKS', ids: webIds});
+                } catch(e){}
+            });
         } catch(e){}
         try {
             const savedEq = localStorage.getItem('webamp-saved-eq');
