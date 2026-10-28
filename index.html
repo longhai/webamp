@@ -45,7 +45,14 @@
     try { _savedSkinUrl = localStorage.getItem('webamp-saved-skin-url'); } catch(e){}
     try { if(_savedSkinUrl && _savedSkinUrl.includes('Winamp5_Classified')){ _savedSkinUrl = 'skins/Winamp5_Classified_v5.5.wsz'; try { localStorage.setItem('webamp-saved-skin-url', _savedSkinUrl); } catch(e){} } } catch(e){}
     const _skins = [
-            {name: "Winamp5 Classified", url: "skins/Winamp5_Classified_v5.5.wsz"},
+            {name: "Green Dimension V2", url: "Green Dimension V2.wsz"},
+            {name: "Internet Archive", url: "Internet Archive.wsz"},
+            {name: "Mac OSX v1.5 (Aqua)", url: "Mac OSX v1.5 (Aqua).wsz"},
+            {name: "TopazAmp", url: "TopazAmp.wsz"},
+            {name: "Vizor", url: "Vizor.wsz"},
+            {name: "XMMS Turquoise", url: "XMMS Turquoise.wsz"},
+            {name: "Zaxon Remake", url: "Zaxon Remake.wsz"},
+            {name: "Winamp5 Classified", url: "skins/Winamp5_Classified_v5.5.wsz"}
         ];
     // FIX MILKDROP DEN: ban toi gian khong nap Butterchurn va preset,
     // nen Milkdrop khong co gi de ve, canvas den thui. Ban nay nhung san
@@ -374,7 +381,13 @@
                     const st = webamp.store.getState();
                     const order = st.playlist && st.playlist.trackOrder ? st.playlist.trackOrder : [];
                     if(!order.length) return;
-                    const media = st.media || {};
+                    // SUA LOI AN NHAC WEB: ban truoc doc nham st.media
+                    // (chi la trang thai phat nhac: volume, balance...)
+                    // nen khong bao gio thay track blob:. Track that su
+                    // nam o st.tracks, dang {id: {url, defaultName...}},
+                    // nhac may co url bat dau bang blob: do Webamp tao
+                    // tu file qua URL.createObjectURL(blob).
+                    const media = st.tracks || st.media || {};
                     const isLocal = (id) => {
                         const m = media[id];
                         return m && m.url && typeof m.url === 'string' && m.url.startsWith('blob:');
