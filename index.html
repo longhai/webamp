@@ -124,13 +124,40 @@
             } catch(e){}
             const totalH = ((typeof __mainShaded !== 'undefined' && __mainShaded) ? 14 : 116) + 116 + 116 + bestEh * 29;
             const scaleY = vh / totalH;
-            // Lap day man hinh hoan toan: trai 0, phai = vw, tren 0, duoi = vh,
-            // khong con ho tren/duoi/trai/phai. scaleY gan scaleX nen meo <5%.
-            w.style.position = 'relative';
-            w.style.left = '0px';
-            w.style.top = '0px';
-            w.style.transformOrigin = 'top left';
-            w.style.transform = 'scale(' + scaleX + ', ' + scaleY + ')';
+            // SUA FULL TREN MAY TINH: truoc day luon dung scale(scaleX, scaleY)
+            // rieng biet. Tren dien thoai scaleX ~1.4 va scaleY chon duoc gan
+            // bang scaleX nen meo <5%, khong sao. Tren may tinh vw lon
+            // (vd 1920) thi scaleX = 1920/275 ~ 7, trong khi scaleY toi da
+            // chi = vh/348 ~ 3.1 (vi tong cao toi thieu la 348), nen keo
+            // rieng biet se keo ngang gap doi keo doc, nut va chu bi bung
+            // ngang qua muc, nhin to qua va meo ti le.
+            // Cach sua: neu scaleY gan scaleX trong 5% thi giu cach cu
+            // (lap day man hinh, khong ho). Neu lech hon 5% (may tinh
+            // man hinh rong) thi dung ti le chung uniform = min(scaleX,
+            // scaleY), vua chieu doc, chieu ngang dung ti le goc, khong
+            // tran man hinh, player can giua tren nen Milkdrop, 2 ben
+            // hien nen Milkdrop chu khong phai khoang den.
+            const diffRatio = scaleX ? Math.abs(scaleY - scaleX) / scaleX : 1;
+            if(diffRatio <= 0.05){
+                // Lap day man hinh hoan toan: trai 0, phai = vw, tren 0, duoi = vh,
+                // khong con ho tren/duoi/trai/phai. scaleY gan scaleX nen meo <5%.
+                w.style.position = 'relative';
+                w.style.left = '0px';
+                w.style.top = '0px';
+                w.style.transformOrigin = 'top left';
+                w.style.transform = 'scale(' + scaleX + ', ' + scaleY + ')';
+            } else {
+                const scaleU = Math.min(scaleX, scaleY);
+                const pw = 275 * scaleU;
+                const ph = totalH * scaleU;
+                const leftC = Math.round((vw - pw) / 2);
+                const topC = Math.round((vh - ph) / 2);
+                w.style.position = 'absolute';
+                w.style.left = leftC + 'px';
+                w.style.top = topC + 'px';
+                w.style.transformOrigin = 'top left';
+                w.style.transform = 'scale(' + scaleU + ', ' + scaleU + ')';
+            }
             // Sua dung huong: KHONG tang font/chieu cao hang playlist nua.
             // Giu nguyen font va ho goc cua ca ten bai va thoi gian, chi dung
             // keo dan ngoai (scale 1.42) de ca 2 cot to len deu nhau, khong lech.
