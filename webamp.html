@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Webamp</title>
+<style>html,body{margin:0;padding:0;overflow:hidden}</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="webamp.bundle.min.js"></script>
+<script src="butterchurn.min.js"></script>
+<script src="butterchurnPresets.min.js"></script>
+<script>
+    const app = document.getElementById("app")
+    // THEM SKIN VAO TRONG NHU CODE GOC: code goc khong nhung skin vao HTML,
+    // ma khai bao danh sach skin qua availableSkins, moi skin la 1 file .wsz
+    // rieng, bam ten skin trong menu Skins thi Webamp se nap file do qua URL.
+    // O day dung ten file dung nhu icon tren webamp.org (anh 2 ban gui),
+    // de file .wsz cung thu muc voi webamp.html thi menu se hien du ten
+    // va bam la doi duoc skin, giong code goc.
+    // GIU SKIN KHI LOAD LAI TRANG: mac dinh Webamp chi giu skin trong
+    // bo nho trang, load lai la mat ve Base Skin. Ban nay luu URL skin
+    // da chon vao localStorage, khi mo trang lai se tu nap lai skin do.
+    let _savedSkinUrl = null;
+    try { _savedSkinUrl = localStorage.getItem('webamp-saved-skin-url'); } catch(e){}
+    const _skins = [
+            {name: "Green Dimension V2", url: "Green Dimension V2.wsz"},
+            {name: "Internet Archive", url: "Internet Archive.wsz"},
+            {name: "Mac OSX v1.5 (Aqua)", url: "Mac OSX v1.5 (Aqua).wsz"},
+            {name: "TopazAmp", url: "TopazAmp.wsz"},
+            {name: "Vizor", url: "Vizor.wsz"},
+            {name: "XMMS Turquoise", url: "XMMS Turquoise.wsz"},
+            {name: "Zaxon Remake", url: "Zaxon Remake.wsz"},
+            {name: "Winamp5 Classified", url: "Winamp5_Classified_v5.5_0_3h53.wsz"}
+        ];
+    // FIX MILKDROP DEN: ban toi gian khong nap Butterchurn va preset,
+    // nen Milkdrop khong co gi de ve, canvas den thui. Ban nay nhung san
+    // thu vien Butterchurn (189KB) va goi preset toi thieu (29 preset,
+    // 187KB) vao trong file, roi truyen cho Webamp qua __butterchurnOptions
+    // giong code goc, de Milkdrop co preset de chay khi co nhac.
+    const webamp = new Webamp({
+        availableSkins: _skins,
+        initialSkin: _savedSkinUrl ? {url: _savedSkinUrl} : undefined,
+        __butterchurnOptions: {
+            importButterchurn: () => Promise.resolve(window.butterchurn),
+            getPresets: () => {
+                try {
+                    const all = window.butterchurnPresets.getPresets();
+                    const names = Object.keys(all);
+                    return Promise.resolve(names.map(name => ({name: name, butterchurnPresetObject: all[name]})));
+                } catch(e){ return Promise.resolve([]); }
+            }
+        }
+    });
+    // BAN CHINH SUA CHE DO PHONG TO: nut giua thu nho (minimize) va X
+    // tren thanh tieu de Main la #shade, goc cua no la thu cua so xuong
+    // chi con thanh tieu de, khong phai phong to, nen bam vao thay khong
+    // phong to duoc. Ban nay lam nut do thanh nut phong to that: bam la
+    // phong to toan bo player vua man hinh, bam lai la ve co thuong.
+    // Dong thoi tang vung bam cua nut shade va nut doublesize (#button-d)
+    // len 32x28px de bam tren dien thoai khong bi hut.
+    let __zoomed = false;
+    function applyZoom(){
+        const w = document.getElementById('webamp');
+        if(!w) return;
+        if(!__zoomed){
+            try {
+                const _f = document.getElementById('pl-big-font'); if(_f) _f.remove();
+            } catch(e){}
+            try {
+                const orig = window.__origPlSize || [0, 0];
+                webamp.store.dispatch({type:'WINDOW_SIZE_CHANGED', windowId:'playlist', size:orig});
+                const xC = Math.round((window.innerWidth - 275) / 2);
+                const plH0 = 116 + (orig[1] || 0) * 29;
+                webamp.store.dispatch({type:'UPDATE_WINDOW_POSITIONS', positions:{main:{x:xC,y:0}, equalizer:{x:xC,y:116}, playlist:{x:xC,y:232}, milkdrop:{x:xC,y:232+plH0}}, absolute:true});
+            } catch(e){}
+            w.style.transform = 'scale(1)';
+            w.style.position = ''; w.style.left = ''; w.style.top = '';
+            document.body.style.height = ''; document.body.style.overflow = '';
+            return;
+        }
+        try {
+            const vw = window.innerWidth, vh = window.innerHeight;
+            const scaleX = vw / 275;
+            // Chon Playlist cao sao cho ti le cao gan ti le rong nhat,
+            // de khi keo dan theo chieu cao thi hinh khong bi meo nhieu.
+            // Tong cao chua keo: Main 232 + EQ 232 + Playlist (116+eh*29)
+            const _mainH = (typeof __mainShaded !== 'undefined' && __mainShaded) ? 14 : 116;
+            let bestEh = 0, bestDiff = 1e9;
+            for(let eh=0; eh<=40; eh++){
+                const total = _mainH + 116 + 116 + eh * 29;
+                const sy = vh / total;
+                const diff = Math.abs(sy - scaleX);
+                if(diff < bestDiff){ bestDiff = diff; bestEh = eh; }
+            }
+            webamp.store.dispatch({type:'WINDOW_SIZE_CHANGED', windowId:'playlist', size:[0, bestEh]});
+            // Khi phong to, Main va EQ cao 232px chu khong phai 116px nua,
+            // nen EQ phai xuong 232, Playlist xuong 464, neu khong cac cua
+            // so se chong len nhau va de ho tren/duoi/trai/phai nhu ban truoc.
+            try {
+                const plH = 116 + bestEh * 29;
+                webamp.store.dispatch({type:'UPDATE_WINDOW_POSITIONS', positions:{main:{x:0,y:0}, equalizer:{x:0,y:_mainH}, playlist:{x:0,y:_mainH+116}, milkdrop:{x:0,y:_mainH+116+plH}}, absolute:true});
+            } catch(e){}
+            const totalH = ((typeof __mainShaded !== 'undefined' && __mainShaded) ? 14 : 116) + 116 + 116 + bestEh * 29;
+            const scaleY = vh / totalH;
+            // Lap day man hinh hoan toan: trai 0, phai = vw, tren 0, duoi = vh,
+            // khong con ho tren/duoi/trai/phai. scaleY gan scaleX nen meo <5%.
+            w.style.position = 'relative';
+            w.style.left = '0px';
+            w.style.top = '0px';
+            w.style.transformOrigin = 'top left';
+            w.style.transform = 'scale(' + scaleX + ', ' + scaleY + ')';
+            // Sua dung huong: KHONG tang font/chieu cao hang playlist nua.
+            // Giu nguyen font va ho goc cua ca ten bai va thoi gian, chi dung
+            // keo dan ngoai (scale 1.42) de ca 2 cot to len deu nhau, khong lech.
+            document.body.style.height = vh + 'px';
+            document.body.style.overflow = 'hidden';
+            document.body.style.overflowX = 'hidden';
+            // Dat volume Webamp len 100% mac dinh de volume dien thoai
+            // (nut cung) dieu khien am luong that, vi web khong doc duoc
+            // volume he thong de dong bo thanh truot voi nut cung.
+            try { webamp.setVolume(100); } catch(e){}
+        } catch(e){}
+    }
+    function toggleZoom(e){
+        if(e){ e.preventDefault(); e.stopPropagation(); }
+        if(!__zoomed){
+            try {
+                const st = webamp.store.getState();
+                const sz = st.windows && st.windows.genWindows && st.windows.genWindows.playlist ? st.windows.genWindows.playlist.size : [0, 0];
+                window.__origPlSize = sz;
+            } catch(err){}
+        }
+        __zoomed = !__zoomed;
+        // Ban chu to: KHONG dung Doublesize 550px roi co xuong (lam chu nho nhu anh 2).
+        // Giu co thuong 275px, chi keo dan len vua man hinh, chu se to len thay vi nho di.
+        // Cho Webamp doi sang doublesize xong roi moi ap scale vua man hinh
+        setTimeout(applyZoom, 300);
+        setTimeout(applyZoom, 1000);
+    }
+    // NUT THU GON CUA SO (Shade, giua thu nho va X): tra ve chuc nang goc
+    // la thu Main xuong chi con thanh tieu de, khong phai phong to nua.
+    // Phong to chuyen sang nut D (Toggle Doublesize) o duoi.
+    let __mainShaded = false;
+    // SUA LECH NUT FULL: truoc day #minimize va #shade deu co ::after rong
+    // 32x28, left -9px, nen ::after cua shade (nam sau minimize trong DOM)
+    // phu kin ca nut minimize (244-253) va nut close. Bam dung hinh nut
+    // minimize (-) thi that ra dinh vao ::after cua shade, nen no thu gon
+    // chu khong full, phai bam lech sang trai moi dinh nut full. Da bo
+    // het ::after chong lan o tren, va doi sang chon nut theo toa do:
+    // bam vao cum nut phai cua thanh tieu de thi nut nao gan tam bam nhat
+    // thi dinh nut do, khong phu thuoc vao lop phu cua nut ke ben nua.
+    // Chuot thi bam dung hinh la dinh, cam ung thi bam lech chut van dinh
+    // nut gan nhat, vi vung cum nut mo rong 14px moi ben.
+    function pickTitleButton(cx, cy){
+        try {
+            const tb = document.getElementById('title-bar');
+            const mn = document.getElementById('minimize');
+            const sh = document.getElementById('shade');
+            const cl = document.getElementById('close');
+            if(!tb || !mn || !sh || !cl) return null;
+            const tr = tb.getBoundingClientRect();
+            if(cy < tr.top - 12 || cy > tr.bottom + 12) return null;
+            const mr = mn.getBoundingClientRect(), sr = sh.getBoundingClientRect(), cr = cl.getBoundingClientRect();
+            if(cx < mr.left - 14 || cx > cr.right + 14) return null;
+            const mc = mr.left + mr.width / 2, sc = sr.left + sr.width / 2, cc = cr.left + cr.width / 2;
+            const dm = Math.abs(cx - mc), ds = Math.abs(cx - sc), dc = Math.abs(cx - cc);
+            if(dm <= ds && dm <= dc) return 'minimize';
+            if(ds <= dc) return 'shade';
+            return 'close';
+        } catch(e){ return null; }
+    }
+    document.addEventListener('click', (e) => {
+        const pb = pickTitleButton(e.clientX, e.clientY);
+        const sh = pb ? (pb === 'shade') : (e.target && e.target.closest ? !!e.target.closest('#shade') : false);
+        if(pb === 'minimize'){ toggleZoom(e); return; }
+        if(pb === 'close'){ e.preventDefault(); e.stopPropagation(); return; }
+        if(!sh) return;
+        // Thu gon duoc ca khi dang full: khong thoat full nua, ma thu gon
+        // Main xuong thanh tieu de trong khi van giu full, Playlist se dai
+        // ra lap day phan trong do Main thu lai.
+        e.preventDefault(); e.stopPropagation();
+        try { webamp.store.dispatch({type:'TOGGLE_WINDOW_SHADE_MODE', windowId:'main'}); } catch(err){}
+        __mainShaded = !__mainShaded;
+        setTimeout(() => {
+            try {
+                if(__zoomed){
+                    // Dang full: chay lai applyZoom de tinh lai Playlist dai ra
+                    // lap day phan Main thu lai, van giu full khong thoat.
+                    applyZoom();
+                    return;
+                }
+                const xC = Math.round((window.innerWidth - 275) / 2);
+                const orig = window.__origPlSize || [0, 0];
+                const plH = 116 + (orig[1] || 0) * 29;
+                if(__mainShaded){
+                    webamp.store.dispatch({type:'UPDATE_WINDOW_POSITIONS', positions:{main:{x:xC,y:0}, equalizer:{x:xC,y:14}, playlist:{x:xC,y:130}, milkdrop:{x:xC,y:130+plH}}, absolute:true});
+                } else {
+                    webamp.store.dispatch({type:'UPDATE_WINDOW_POSITIONS', positions:{main:{x:xC,y:0}, equalizer:{x:xC,y:116}, playlist:{x:xC,y:232}, milkdrop:{x:xC,y:232+plH}}, absolute:true});
+                }
+            } catch(err2){}
+        }, 200);
+    }, true);
+    // NUT PHONG TO THAT: nut D (Toggle Doublesize) o hang nut duoi Main,
+    // bam la full, bam lai la ve thuong (dung ham toggleZoom cu, nhung gio gan vao nut D)
+    document.addEventListener('click', (e) => {
+        const d = e.target && e.target.closest ? e.target.closest('#button-d') : null;
+        if(d){ toggleZoom(e); }
+    }, true);
+    // Nut Full tren dien thoai: them touchend de bam cham la nhan ngay,
+    // khong phai cho click sau khi keo, vi nut D goc chi 8x8px rat kho bam.
+    document.addEventListener('touchend', (e) => {
+        const d = e.target && e.target.closest ? e.target.closest('#button-d') : null;
+        if(d){ toggleZoom(e); }
+    }, true);
+    // NUT FULL GIONG UNG DUNG MAY TINH: nut ke ben nut thu gon cua so la
+    // nut thu nho (-), hien tai nut nay o ban web khong hoat dong (khong co
+    // cua so he dieu hanh de thu xuong), nen dung nut nay cho chuc nang Full,
+    // giong nut Maximize tren ung dung may tinh: bam la full man hinh,
+    // bam lai la ve co thuong. Nut thu gon (Shade) van giu chuc nang thu gon,
+    // nut X van tat, nut D van full duoc.
+    // Nut minimize/full da xu ly o handler cum nut tieu de phia tren,
+    // khong xu ly rieng o day nua de tranh bam 1 lan ma full 2 lan.
+    document.addEventListener('touchend', (e) => {
+        try {
+            const tc = e.changedTouches && e.changedTouches[0];
+            if(!tc) return;
+            const pb = pickTitleButton(tc.clientX, tc.clientY);
+            if(pb === 'minimize'){ toggleZoom(e); }
+        } catch(err){}
+    }, true);
+    // VO HIEU HOA NUT X: bam X khong dong player nua, tranh bam nham
+    // khi bam nut thu gon ke ben (nut X, thu nho, shade nam sat nhau, rat nho tren dien thoai).
+    document.addEventListener('click', (e) => {
+        const cl = e.target && e.target.closest ? e.target.closest('#close, #equalizer-close, #playlist-close, .gen-close') : null;
+        if(cl){ e.preventDefault(); e.stopPropagation(); }
+    }, true);
+    // Tang vung bam cua nut shade va nut doublesize cho de bam tren dien thoai
+    const _style = document.createElement('style');
+    _style.textContent = '#shade::after, #minimize::after, #button-d::after{content:none !important}';
+    document.head.appendChild(_style);
+    // Luu skin khi chon tu menu Skins: menu la DOM, bam ten skin nao thi
+    // luu URL cua skin do vao localStorage, lan sau mo trang se tu nap lai.
+    document.addEventListener('click', (e) => {
+        try {
+            const txt = e.target && e.target.textContent ? e.target.textContent.trim() : '';
+            const found = _skins.find(s => s.name === txt);
+            if(found){ localStorage.setItem('webamp-saved-skin-url', found.url); }
+            if(txt === '<Base Skin>'){ localStorage.removeItem('webamp-saved-skin-url'); }
+        } catch(err){}
+    }, true);
+    // GIU EQ KHI LOAD LAI TRANG: EQ cung chi giu trong bo nho trang,
+    // load lai la ve mac dinh (tat ca can ve giua, EQ bat). Ban nay luu
+    // EQ vao localStorage moi khi chinh, khi mo trang lai se tu dat lai.
+    // NHO FILE NHAC: file nhac chon bang file picker trong may thi trinh
+    // duyet khong cho nho duong dan, load lai la mat. Cach nho duoc la
+    // up file nhac len cung thu muc voi webamp.html, roi liet ke trong
+    // songs.json cung thu muc, trang se tu nap songs.json moi lan mo,
+    // khoi phai chon lai. Khi up nhac moi thi sua songs.json moi, trang
+    // se nho danh sach moi. Neu khong co songs.json thi dung danh sach
+    // nhac URL da luu trong localStorage truoc do.
+    webamp.renderWhenReady(app).then(() => {
+        // TU NHAN MP3 CUNG HOST: trang khong tu quet duoc thu muc mp3,
+        // vi GitHub Pages go ten thu muc chi tra 404, khong tra danh sach.
+        // Cung host chi giup tai file da biet ten, khong giup biet ten file.
+        // Ban nay hoi danh sach qua GitHub API (api.github.com) - dich vu
+        // liet ke file cua cung repo do - roi moi tai nhac tu cung host.
+        // Thu tu: 1) GitHub API -> mp3/ cung thu muc voi trang,
+        // 2) liet ke thu muc neu host bat autoindex, 3) songs.json cu,
+        // 4) danh sach URL da luu truoc do. Chi luu ten + duong dan,
+        // khong luu noi dung file vao trinh duyet.
+        try {
+            const loadSaved = () => {
+                try {
+                    const saved = localStorage.getItem('webamp-saved-tracks');
+                    if(saved){ const sl = JSON.parse(saved); if(sl && sl.length) webamp.appendTracks(sl); }
+                } catch(e){}
+            };
+            const isAudio = (n) => /\.(mp3|wav|flac|ogg|m4a|opus)$/i.test(n);
+            const toTracks = (names) => names.filter(isAudio).sort((a,b) => a.localeCompare(b, undefined, {numeric:true, sensitivity:'base'})).map(n => ({metaData:{artist:'', title: n.replace(/\.[^.]+$/, '')}, url: 'mp3/' + encodeURIComponent(n)}));
+            const tryGithubApi = async () => {
+                try {
+                    const host = location.hostname;
+                    if(!/\.github\.io$/.test(host)) return null;
+                    const user = host.split('.')[0];
+                    const parts = location.pathname.split('/').filter(Boolean);
+                    const dir = parts.slice(0, -1);
+                    const cands = [];
+                    if(dir.length >= 1) cands.push({repo: user + '/' + dir[0], path: dir.slice(1).concat(['mp3']).join('/')});
+                    cands.push({repo: user + '/' + user + '.github.io', path: dir.concat(['mp3']).join('/')});
+                    for(const c of cands){
+                        try {
+                            const r = await fetch('https://api.github.com/repos/' + c.repo + '/contents/' + c.path);
+                            if(!r.ok) continue;
+                            const arr = await r.json();
+                            if(!Array.isArray(arr)) continue;
+                            const names = arr.filter(x => x.type === 'file').map(x => x.name);
+                            const tracks = toTracks(names);
+                            if(tracks.length) return tracks;
+                        } catch(e){}
+                    }
+                    return null;
+                } catch(e){ return null; }
+            };
+            const tryDirListing = async () => {
+                try {
+                    const r = await fetch('mp3/');
+                    if(!r.ok) return null;
+                    const html = await r.text();
+                    const doc = new DOMParser().parseFromString(html, 'text/html');
+                    const names = Array.from(doc.querySelectorAll('a')).map(a => decodeURIComponent(a.getAttribute('href') || '')).map(h => h.split('/').filter(Boolean).pop()).filter(Boolean);
+                    const tracks = toTracks(names);
+                    return tracks.length ? tracks : null;
+                } catch(e){ return null; }
+            };
+            (async () => {
+                let tracks = await tryGithubApi();
+                if(!tracks) tracks = await tryDirListing();
+                if(tracks && tracks.length){
+                    try { localStorage.setItem('webamp-saved-tracks', JSON.stringify(tracks)); } catch(e){}
+                    try { webamp.appendTracks(tracks); } catch(e){}
+                    return;
+                }
+                try {
+                    const r = await fetch('songs.json');
+                    const list = r.ok ? await r.json() : null;
+                    if(list && list.length){
+                        try { localStorage.setItem('webamp-saved-tracks', JSON.stringify(list)); } catch(e){}
+                        try { webamp.appendTracks(list); } catch(e){}
+                    } else loadSaved();
+                } catch(e){ loadSaved(); }
+            })();
+        } catch(e){}
+        try {
+            const savedEq = localStorage.getItem('webamp-saved-eq');
+            if(savedEq){
+                const eq = JSON.parse(savedEq);
+                if(eq.sliders){
+                    for(const band in eq.sliders){
+                        try { webamp.store.dispatch({type:'SET_BAND_VALUE', band: band, value: eq.sliders[band]}); } catch(e){}
+                    }
+                }
+                if(eq.on === false){ try { webamp.store.dispatch({type:'SET_EQ_OFF'}); } catch(e){} }
+                if(eq.on === true){ try { webamp.store.dispatch({type:'SET_EQ_ON'}); } catch(e){} }
+                if(typeof eq.auto !== 'undefined'){ try { webamp.store.dispatch({type:'SET_EQ_AUTO', value: eq.auto}); } catch(e){} }
+            }
+        } catch(e){}
+        let _lastEqJson = '';
+        try {
+            webamp.store.subscribe(() => {
+                try {
+                    const eq = webamp.store.getState().equalizer;
+                    const j = JSON.stringify(eq);
+                    if(j !== _lastEqJson){ _lastEqJson = j; localStorage.setItem('webamp-saved-eq', j); }
+                } catch(e){}
+            });
+        } catch(e){}
+        // GIU MILKDROP NEN TOAN MAN HINH NHU ANH BAN GUI: mac dinh mo
+        // Milkdrop va dat che do Desktop (Webamp goc co san, khong che
+        // them): Milkdrop ve vao 1 lop .webamp-desktop absolute full
+        // man hinh, z-index -1, nam duoi het, 3 cua so Main/Equalizer/
+        // Playlist noi tren nen. Khi mo Milkdrop kieu nay, cua so
+        // Milkdrop duoc tinh la dang mo, nen vong ve hieu ung chay
+        // lien tuc khi nhac dang phat, khong bi dung khi bam sang
+        // Main/Playlist nhu khi an Milkdrop. Preset tu doi moi 15 giay
+        // khi dang phat (che do cycling + randomize mac dinh cua Webamp).
+        // Muon tat nen thi bam chuot phai vao nen Milkdrop -> Quit,
+        // hoac vao menu Milkdrop bo chon Desktop Mode.
+        try {
+            webamp.store.dispatch({type:'ENABLE_MILKDROP', open:true});
+            webamp.store.dispatch({type:'SET_MILKDROP_DESKTOP', enabled:true});
+        } catch(e){}
+    });
+</script>
+</body>
+</html>
+</script>
+</body>
+</html>
