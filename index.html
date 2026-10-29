@@ -26,6 +26,7 @@
     <script src="butterchurn.min.js"></script>
 <script src="butterchurnPresets.min.js"></script>
 <script src="hls.min.js"></script>
+<script src="shaka-player.compiled.js"></script>
 <script>
     const app = document.getElementById("app")
     let _savedSkinUrl = null;
@@ -46,47 +47,16 @@
     let _hlsActive = false;
     let _hlsBlobUrl = null;
     let _hlsNativeSrc = '';
-    let _videoEl = null;
-    let _hlsVideo = null;
-    let _videoActive = false;
-    let _videoUrl = '';
-    let _audioPlayOrig = null;
-    let _audioPauseOrig = null;
-    function _isVideoHls(url){
+    let _shakaPlayer = null;
+    let _shakaActive = false;
+    let _shakaPolyfillDone = false;
+    function _isShakaAudio(url){
         try{
             if(!url || typeof url !== 'string') return false;
             const low = url.toLowerCase().split('?')[0].split('#')[0];
             if(!low.endsWith('.m3u8')) return false;
             return url.indexOf('live.mediatech.vn') >= 0 || url.indexOf('live.truyenhinhnghean.vn') >= 0;
         }catch(e){ return false; }
-    }
-    let _videoHlsTried = false;
-    let _videoFallbackTimer = null;
-    function _startVideoHlsFallback(url){
-        try{
-            if(!_videoEl || !url) return;
-            _videoHlsTried = true;
-            if(window.Hls && window.Hls.isSupported()){
-                if(!_hlsVideo){
-                    _hlsVideo = new window.Hls({maxBufferLength: 30});
-                    try{ _hlsVideo.attachMedia(_videoEl); }catch(err){}
-                    try{
-                        _hlsVideo.on(window.Hls.Events.ERROR, function(ev, data){
-                            try{
-                                if(data && data.fatal){
-                                    if(data.type === window.Hls.ErrorTypes.NETWORK_ERROR){ try{ _hlsVideo.startLoad(); }catch(err2){} }
-                                    else if(data.type === window.Hls.ErrorTypes.MEDIA_ERROR){ try{ _hlsVideo.recoverMediaError(); }catch(err2){} }
-                                }
-                            }catch(err2){}
-                        });
-                    }catch(err){}
-                } else {
-                    try{ if(!_hlsVideo.media){ _hlsVideo.attachMedia(_videoEl); } }catch(err){}
-                }
-                try{ _hlsVideo.loadSource(url); }catch(err){}
-                try{ const pv = _videoEl.play(); if(pv && pv.catch) pv.catch(function(){}); }catch(err){}
-            }
-        }catch(e){}
     }
     try {
         const _origCreateObjectURL = URL.createObjectURL;
@@ -107,28 +77,6 @@
             try {
                 if(typeof tag === 'string' && tag.toLowerCase() === 'audio' && !_hlsAudio){
                     _hlsAudio = el;
-                    try{ _audioPlayOrig = el.play.bind(el); }catch(e){}
-                    try{ _audioPauseOrig = el.pause.bind(el); }catch(e){}
-                    try{
-                        el.play = function(){
-                            try{
-                                if(_videoActive && _videoEl){
-                                    try{ return _videoEl.play(); }catch(err){ return Promise.resolve(); }
-                                }
-                            }catch(err){}
-                            try{ return _audioPlayOrig(); }catch(err2){ return Promise.resolve(); }
-                        };
-                    }catch(e){}
-                    try{
-                        el.pause = function(){
-                            try{
-                                if(_videoActive && _videoEl){
-                                    try{ _videoEl.pause(); }catch(err){}
-                                }
-                            }catch(err){}
-                            try{ return _audioPauseOrig(); }catch(err2){}
-                        };
-                    }catch(e){}
                     let _desc = null;
                     let _p = Object.getPrototypeOf(el);
                     while(_p && !_desc){
@@ -145,90 +93,40 @@
                             },
                             set: function(url){
                                 try {
-                                    if(_isVideoHls(url)){
-                                        _videoActive = true;
-                                        _videoUrl = url;
+                                    if(_isShakaAudio(url) && window.shaka && window.shaka.Player){
+                                        _shakaActive = true;
                                         _hlsNativeSrc = url;
-                                        try{ if(_audioPauseOrig) _audioPauseOrig(); }catch(err){}
                                         try{
-                                            if(!_videoEl){
-                                                _videoEl = document.createElement('video');
-                                                try{ _videoEl.setAttribute('crossorigin', 'anonymous'); }catch(err){}
-                                                try{ _videoEl.crossOrigin = 'anonymous'; }catch(err){}
-                                                try{ _videoEl.playsInline = true; }catch(err){}
-                                                _videoEl.style.position = 'fixed';
-                                                _videoEl.style.left = '50%';
-                                                _videoEl.style.bottom = '8px';
-                                                _videoEl.style.top = 'auto';
-                                                _videoEl.style.transform = 'translateX(-50%)';
-                                                _videoEl.style.width = '275px';
-                                                _videoEl.style.height = '155px';
-                                                _videoEl.style.opacity = '1';
-                                                _videoEl.style.pointerEvents = 'auto';
-                                                _videoEl.style.zIndex = '9999';
-                                                _videoEl.style.background = '#000';
-                                                _videoEl.style.display = 'block';
-                                                try{ _videoEl.controls = true; }catch(err){}
-                                                try{ _videoEl.muted = false; }catch(err){}
-                                                _videoEl.addEventListener('error', function(){
-                                                    try{
-                                                        if(_videoActive && !_videoHlsTried){ _startVideoHlsFallback(_videoUrl); }
-                                                    }catch(err){}
-                                                });
-                                                _videoEl.addEventListener('timeupdate', function(){
-                                                    try{
-                                                        if(!_videoActive) return;
-                                                        const ref = window._webampRef;
-                                                        if(ref && ref.store){ ref.store.dispatch({type:'UPDATE_TIME_ELAPSED', elapsed: _videoEl.currentTime || 0}); }
-                                                    }catch(err){}
-                                                });
-                                                document.body.appendChild(_videoEl);
+                                            if(_hlsActive && _hlsInstance){ try{ _hlsInstance.detachMedia(); }catch(err){} _hlsActive = false; }
+                                        }catch(err){}
+                                        try{
+                                            if(!_shakaPolyfillDone){
+                                                try{ if(window.shaka.polyfill) window.shaka.polyfill.installAll(); }catch(err){}
+                                                _shakaPolyfillDone = true;
+                                            }
+                                        }catch(err){}
+                                        try{
+                                            if(!_shakaPlayer){
+                                                _shakaPlayer = new window.shaka.Player(el);
+                                                try{ _shakaPlayer.configure({manifest:{disableVideo:true, disableText:true, disableThumbnails:true}}); }catch(err){}
+                                            } else {
+                                                try{ _shakaPlayer.configure({manifest:{disableVideo:true, disableText:true, disableThumbnails:true}}); }catch(err){}
                                             }
                                             try{
-                                                const ref2 = window._webampRef;
-                                                if(ref2 && ref2.store){
-                                                    const st2 = ref2.store.getState();
-                                                    const vol = st2.media && typeof st2.media.volume === 'number' ? st2.media.volume : 100;
-                                                    _videoEl.volume = Math.min(1, Math.max(0, vol > 100 ? vol / 255 : vol / 100));
-                                                } else { _videoEl.volume = 1; }
-                                            }catch(err){}
-                                            try{
-                                                _videoEl.style.display = 'block';
-                                                _videoEl.style.position = 'fixed';
-                                                _videoEl.style.left = '50%';
-                                                _videoEl.style.bottom = '8px';
-                                                _videoEl.style.width = '275px';
-                                                _videoEl.style.height = '155px';
-                                                _videoEl.style.opacity = '1';
-                                                _videoEl.style.pointerEvents = 'auto';
-                                                _videoEl.style.zIndex = '9999';
-                                                try{ _videoEl.controls = true; }catch(err){}
-                                                try{ _videoEl.muted = false; }catch(err){}
-                                            }catch(err){}
-                                            _videoHlsTried = false;
-                                            try{ if(_hlsVideo) _hlsVideo.detachMedia(); }catch(err){}
-                                            try{ _videoEl.src = url; }catch(err){}
-                                            try{
-                                                const pv = _videoEl.play();
-                                                if(pv && pv.catch) pv.catch(function(){ try{ _startVideoHlsFallback(url); }catch(err){} });
-                                            }catch(err){ try{ _startVideoHlsFallback(url); }catch(err2){} }
-                                            try{
-                                                clearTimeout(_videoFallbackTimer);
-                                                _videoFallbackTimer = setTimeout(function(){
-                                                    try{
-                                                        if(_videoActive && _videoEl && (_videoEl.paused || !_videoEl.currentTime) && !_videoHlsTried){ _startVideoHlsFallback(_videoUrl); }
-                                                    }catch(err){}
-                                                }, 6000);
+                                                const pr = _shakaPlayer.load(url);
+                                                if(pr && pr.catch) pr.catch(function(){});
                                             }catch(err){}
                                         }catch(err){}
                                         return;
                                     }
-                                    if(_videoActive){
-                                        _videoActive = false;
-                                        _videoUrl = '';
-                                        try{ clearTimeout(_videoFallbackTimer); }catch(err){}
-                                        try{ if(_videoEl){ _videoEl.pause(); _videoEl.style.display = 'none'; } }catch(err){}
-                                        try{ if(_hlsVideo) _hlsVideo.detachMedia(); }catch(err){}
+                                    if(_shakaActive){
+                                        _shakaActive = false;
+                                        try{
+                                            if(_shakaPlayer){
+                                                const pr = _shakaPlayer.unload();
+                                                if(pr && pr.catch) pr.catch(function(){});
+                                            }
+                                        }catch(err){}
                                     }
                                     if(url && url === _hlsBlobUrl){
                                         _nativeSet.call(el, url);
@@ -301,7 +199,6 @@
             }
         }
     });
-    try{ window._webampRef = webamp; }catch(e){}
     let __zoomed = false;
     function applyZoom(){
         const w = document.getElementById('webamp');
@@ -739,22 +636,6 @@
                 } catch(e){}
             });
             _updateRepeatIndicator();
-        } catch(e){}
-        try {
-            webamp.store.subscribe(() => {
-                try{
-                    if(!_videoActive || !_videoEl) return;
-                    const st = webamp.store.getState();
-                    const vol = st.media && typeof st.media.volume === 'number' ? st.media.volume : 100;
-                    _videoEl.volume = Math.min(1, Math.max(0, vol > 100 ? vol / 255 : vol / 100));
-                    const status = st.media && st.media.status;
-                    if(status === 'PAUSED' || status === 'ENDED' || status === 'STOPPED'){
-                        if(!_videoEl.paused){ try{ _videoEl.pause(); }catch(e){} }
-                    } else if(status === 'PLAYING'){
-                        if(_videoEl.paused){ try{ const pv = _videoEl.play(); if(pv && pv.catch) pv.catch(function(){}); }catch(e){} }
-                    }
-                }catch(e){}
-            });
         } catch(e){}
         try {
             webamp.store.dispatch({type:'ENABLE_MILKDROP', open:false});
