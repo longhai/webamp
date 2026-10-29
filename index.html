@@ -722,7 +722,7 @@
                     }
                 } catch(e){}
             };
-            var _webampRoot2 = document.getElementById('webamp');
+            var _webampRoot2 = document.body || document.getElementById('webamp');
             if(_webampRoot2){
                 _translateTree(_webampRoot2);
                 var _menuObs = new MutationObserver(function(muts){
