@@ -50,6 +50,8 @@
     let _shakaPlayer = null;
     let _shakaActive = false;
     let _shakaPolyfillDone = false;
+    let _shakaLastError = '';
+    let _shakaLoadState = '';
     let _dbgEl = null;
     function _dbg(msg){
         try{
@@ -115,6 +117,11 @@
                             },
                             set: function(url){
                                 try {
+                                    if(url && url === _hlsBlobUrl){
+                                        _nativeSet.call(el, url);
+                                        _hlsNativeSrc = url;
+                                        return;
+                                    }
                                     if(_isShakaAudio(url) && window.shaka && window.shaka.Player){
                                         _shakaActive = true;
                                         _dbg('Shaka: bat dau load ' + url);
@@ -136,8 +143,8 @@
                                                 try{ _shakaPlayer.configure({manifest:{disableVideo:true, disableText:true, disableThumbnails:true}}); }catch(err){}
                                             }
                                             try{
-                                                const pr = _shakaPlayer.load(url); _dbg('Shaka: dang load, supported=' + (window.shaka.Player.isBrowserSupported ? window.shaka.Player.isBrowserSupported() : '?')); try{ if(pr && pr.then) pr.then(function(){ _dbg('Shaka: load xong'); }); }catch(err){}
-                                                if(pr && pr.catch) pr.catch(function(err){ try{ _dbg('Shaka LOI: ' + (err && err.code ? err.code : '') + ' ' + (err && err.message ? err.message : err)); }catch(e){} });
+                                                try{ if(_shakaPlayer.attach && _shakaPlayer.getMediaElement && _shakaPlayer.getMediaElement() !== el){ const ap = _shakaPlayer.attach(el); if(ap && ap.catch) ap.catch(function(){}); } }catch(err){} _shakaLoadState = 'dang load'; const pr = _shakaPlayer.load(url); _dbg('Shaka: dang load, supported=' + (window.shaka.Player.isBrowserSupported ? window.shaka.Player.isBrowserSupported() : '?')); try{ if(pr && pr.then) pr.then(function(){ _shakaLoadState = 'load xong'; _dbg('Shaka: load xong'); }); }catch(err){}
+                                                if(pr && pr.catch) pr.catch(function(err){ try{ _shakaLastError = (err && err.code ? err.code : '') + ' ' + (err && err.message ? err.message : err); _shakaLoadState = 'loi'; _dbg('Shaka LOI: ' + _shakaLastError); }catch(e){} });
                                             }catch(err){}
                                         }catch(err){}
                                         return;
@@ -229,7 +236,7 @@
                 const a = _hlsAudio;
                 if(!a) return;
                 const buf = a.buffered && a.buffered.length ? (a.buffered.end(a.buffered.length-1) - a.buffered.start(0)).toFixed(1) : '0';
-                _dbg('Shaka dang chay: time=' + (a.currentTime ? a.currentTime.toFixed(1) : '0') + ' paused=' + a.paused + ' vol=' + a.volume + ' muted=' + a.muted + ' ready=' + a.readyState + ' buffered=' + buf + ' src=' + (a.src ? a.src.slice(0,40) : ''));
+                _dbg('Shaka ' + _shakaLoadState + ' loi=' + _shakaLastError + ' time=' + (a.currentTime ? a.currentTime.toFixed(1) : '0') + ' paused=' + a.paused + ' vol=' + a.volume + ' muted=' + a.muted + ' ready=' + a.readyState + ' buffered=' + buf + ' srcObj=' + (a.srcObject ? 'co' : 'khong') + ' src=' + (a.src ? a.src.slice(0,40) : ''));
             }catch(e){}
         }, 1000);
     }catch(e){}
