@@ -31,7 +31,14 @@
     try { _savedSkinUrl = localStorage.getItem('webamp-saved-skin-url'); } catch(e){}
     try { if(_savedSkinUrl && _savedSkinUrl.includes('Winamp5_Classified')){ _savedSkinUrl = 'skins/Winamp5_Classified_v5.5.wsz'; try { localStorage.setItem('webamp-saved-skin-url', _savedSkinUrl); } catch(e){} } } catch(e){}
     const _skins = [
-            {name: "Winamp5 Classified", url: "skins/Winamp5_Classified_v5.5.wsz"},
+            {name: "Green Dimension V2", url: "Green Dimension V2.wsz"},
+            {name: "Internet Archive", url: "Internet Archive.wsz"},
+            {name: "Mac OSX v1.5 (Aqua)", url: "Mac OSX v1.5 (Aqua).wsz"},
+            {name: "TopazAmp", url: "TopazAmp.wsz"},
+            {name: "Vizor", url: "Vizor.wsz"},
+            {name: "XMMS Turquoise", url: "XMMS Turquoise.wsz"},
+            {name: "Zaxon Remake", url: "Zaxon Remake.wsz"},
+            {name: "Winamp5 Classified", url: "skins/Winamp5_Classified_v5.5.wsz"}
         ];
     const webamp = new Webamp({
         availableSkins: _skins,
@@ -251,22 +258,112 @@
                     return tracks.length ? tracks : null;
                 } catch(e){ return null; }
             };
+            const parseM3u = (text, fallback) => {
+                const out = [];
+                const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
+                let pending = null;
+                for(const raw of lines){
+                    const line = raw.trim();
+                    if(!line) continue;
+                    if(line.startsWith('#EXTINF:')){
+                        const idx = line.indexOf(',');
+                        pending = idx >= 0 ? line.slice(idx + 1).trim() : null;
+                        continue;
+                    }
+                    if(line.startsWith('#')) continue;
+                    let url = line;
+                    if(!/^https?:\/\//i.test(url)){
+                        url = url.startsWith('/') ? url : 'radio/' + url;
+                    }
+                    out.push({metaData:{artist:'', title: pending || fallback}, url: url});
+                    pending = null;
+                }
+                return out;
+            };
+            const tryRadioApi = async () => {
+                try {
+                    const host = location.hostname;
+                    if(!/\.github\.io$/.test(host)) return null;
+                    const user = host.split('.')[0];
+                    const parts = location.pathname.split('/').filter(Boolean);
+                    let dir;
+                    if(location.pathname.endsWith('/')) dir = parts;
+                    else if(parts.length && parts[parts.length-1].includes('.')) dir = parts.slice(0, -1);
+                    else dir = parts;
+                    const cands = [];
+                    if(dir.length >= 1){
+                        cands.push({repo: user + '/' + dir[0], path: dir.slice(1).concat(['radio']).join('/')});
+                        if(dir.slice(1).length) cands.push({repo: user + '/' + dir[0], path: 'radio'});
+                    }
+                    cands.push({repo: user + '/' + user + '.github.io', path: dir.concat(['radio']).join('/')});
+                    for(const c of cands){
+                        try {
+                            const r = await fetch('https://api.github.com/repos/' + c.repo + '/contents/' + c.path);
+                            if(!r.ok) continue;
+                            const arr = await r.json();
+                            if(!Array.isArray(arr)) continue;
+                            const names = arr.filter(x => x.type === 'file').map(x => x.name).filter(n => /\.m3u8?$/i.test(n));
+                            if(names.length) return names;
+                        } catch(e){}
+                    }
+                    return null;
+                } catch(e){ return null; }
+            };
+            const tryRadio = async () => {
+                try {
+                    let names = await tryRadioApi();
+                    if(!names){
+                        try {
+                            const r = await fetch('radio/');
+                            if(r.ok){
+                                const html = await r.text();
+                                const doc = new DOMParser().parseFromString(html, 'text/html');
+                                names = Array.from(doc.querySelectorAll('a')).map(a => decodeURIComponent(a.getAttribute('href') || '')).map(h => h.split('/').filter(Boolean).pop()).filter(Boolean).filter(n => /\.m3u8?$/i.test(n));
+                            }
+                        } catch(e){}
+                    }
+                    if(!names || !names.length) return [];
+                    const out = [];
+                    for(const name of names){
+                        try {
+                            const r = await fetch('radio/' + encodeURIComponent(name));
+                            if(!r.ok) continue;
+                            const text = await r.text();
+                            const fallback = name.replace(/\.m3u8?$/i, '');
+                            const tracks = parseM3u(text, fallback);
+                            for(const tr of tracks) out.push(tr);
+                        } catch(e){}
+                    }
+                    return out;
+                } catch(e){ return []; }
+            };
             (async () => {
                 let tracks = await tryGithubApi();
                 if(!tracks) tracks = await tryDirListing();
+                let base = [];
                 if(tracks && tracks.length){
+                    base = tracks;
                     try { localStorage.setItem('webamp-saved-tracks', JSON.stringify(tracks)); } catch(e){}
                     try { webamp.appendTracks(tracks); } catch(e){}
-                    return;
+                } else {
+                    try {
+                        const r = await fetch('songs.json');
+                        const list = r.ok ? await r.json() : null;
+                        if(list && list.length){
+                            base = list;
+                            try { localStorage.setItem('webamp-saved-tracks', JSON.stringify(list)); } catch(e){}
+                            try { webamp.appendTracks(list); } catch(e){}
+                        } else loadSaved();
+                    } catch(e){ loadSaved(); }
                 }
-                try {
-                    const r = await fetch('songs.json');
-                    const list = r.ok ? await r.json() : null;
-                    if(list && list.length){
-                        try { localStorage.setItem('webamp-saved-tracks', JSON.stringify(list)); } catch(e){}
-                        try { webamp.appendTracks(list); } catch(e){}
-                    } else loadSaved();
-                } catch(e){ loadSaved(); }
+                const radioTracks = await tryRadio();
+                if(radioTracks.length){
+                    try { webamp.appendTracks(radioTracks); } catch(e){}
+                    try {
+                        const combined = base.concat(radioTracks);
+                        if(combined.length) localStorage.setItem('webamp-saved-tracks', JSON.stringify(combined));
+                    } catch(e){}
+                }
             })();
         } catch(e){}
         try {
