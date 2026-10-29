@@ -8,26 +8,8 @@ https://live.canthotv.vn/live/radiocs2/playlist.m3u8
 #EXTINF:-1 group-title="Radio Việt", Tây Ninh FM 103.1 MHz | FM 96.9 MHz
 https://live-hq.evgcdn.net/live/2851dd3d9016ac74d84b0c4a7a659f76891/chunklist.m3u8
 
-#EXTINF:-1 group-title="Radio Việt", Đà Nẵng 
-https://live.mediatech.vn/live/2858a998b1c7fbf4522accd5554588ceae3/playlist.m3u8
-
-#EXTINF:-1 group-title="Radio Việt", Quảng ngãi
-https://live.mediatech.vn/live/2853bb18b89d074498c81d7a0deb32a3755/playlist.m3u8
-
-#EXTINF:-1 group-title="Radio Việt", Nghệ An 
-https://live.truyenhinhnghean.vn/hls/na1/index.m3u8
-
-#EXTINF:-1 group-title="Radio Việt", Ninh Bình
-https://live.mediatech.vn/live/285391a08f01f83458793b293c5e9517265/playlist.m3u8
-
 #EXTINF:-1 group-title="Radio Việt", Sơn La
 https://cdn.sonlatv.vn/live/285bfb76d0d7a3c4615b853fe7a698e150c/playlist.m3u8
-
-#EXTINF:-1 group-title="Radio Việt", Điện Biên
-https://live.mediatech.vn/live/28535437e79046746c1bf9787970a876038/playlist.m3u8
-
-#EXTINF:-1 group-title="Radio Việt", Bác Ninh
-https://live.mediatech.vn/live/285acd5e43b501e4c21b0af4e55810625c8/chunklist.m3u8
 
 #EXTINF:-1 group-title="Radio Việt", Hải Phòng
 https://cdn.thhp.vn/live/2853ef29ebf29c64155acb32d102dd69a4a/playlist.m3u8
