@@ -601,7 +601,7 @@
                     if(node.nodeType === 3){
                         var t = node.nodeValue;
                         if(t && /Infinity/i.test(t)){
-                            var nt = t.replace(/Infinity[0-9A-Za-z:]*/gi, '0:00');
+                            var nt = t.replace(/\/Infinity[0-9A-Za-z:]*/gi, '').replace(/Infinity[0-9A-Za-z:]*/gi, '0:00');
                             if(nt !== t) node.nodeValue = nt;
                         } else if(t && t.indexOf('NaN') !== -1 && t.indexOf(':') !== -1){
                             var nt2 = t.replace(/\bNaN(?::\bNaN\b)*/g, '0:00');
