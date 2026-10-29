@@ -25,6 +25,7 @@
     </script>
     <script src="butterchurn.min.js"></script>
 <script src="butterchurnPresets.min.js"></script>
+<script src="hls.min.js"></script>
 <script>
     const app = document.getElementById("app")
     let _savedSkinUrl = null;
@@ -40,6 +41,103 @@
             {name: "Zaxon Remake", url: "Zaxon Remake.wsz"},
             {name: "Winamp5 Classified", url: "skins/Winamp5_Classified_v5.5.wsz"}
         ];
+    let _hlsAudio = null;
+    let _hlsInstance = null;
+    let _hlsActive = false;
+    let _hlsBlobUrl = null;
+    let _hlsNativeSrc = '';
+    try {
+        const _origCreateObjectURL = URL.createObjectURL;
+        URL.createObjectURL = function(obj){
+            const url = _origCreateObjectURL.call(URL, obj);
+            try {
+                if(typeof MediaSource !== 'undefined' && obj instanceof MediaSource){
+                    _hlsBlobUrl = url;
+                }
+            } catch(e){}
+            return url;
+        };
+    } catch(e){}
+    try {
+        const _origCreateElement = document.createElement.bind(document);
+        document.createElement = function(tag, opts){
+            const el = _origCreateElement(tag, opts);
+            try {
+                if(typeof tag === 'string' && tag.toLowerCase() === 'audio' && !_hlsAudio){
+                    _hlsAudio = el;
+                    let _desc = null;
+                    let _p = Object.getPrototypeOf(el);
+                    while(_p && !_desc){
+                        _desc = Object.getOwnPropertyDescriptor(_p, 'src');
+                        _p = Object.getPrototypeOf(_p);
+                    }
+                    const _nativeSet = _desc && _desc.set ? _desc.set : null;
+                    const _nativeGet = _desc && _desc.get ? _desc.get : null;
+                    if(_nativeSet){
+                        Object.defineProperty(el, 'src', {
+                            configurable: true,
+                            get: function(){
+                                try { return _nativeGet ? _nativeGet.call(el) : _hlsNativeSrc; } catch(err){ return _hlsNativeSrc; }
+                            },
+                            set: function(url){
+                                try {
+                                    if(url && url === _hlsBlobUrl){
+                                        _nativeSet.call(el, url);
+                                        _hlsNativeSrc = url;
+                                        return;
+                                    }
+                                    const isM3u8 = !!(url && typeof url === 'string' && url.toLowerCase().split('?')[0].split('#')[0].endsWith('.m3u8'));
+                                    if(isM3u8){
+                                        if(window.Hls && window.Hls.isSupported()){
+                                            _hlsActive = true;
+                                            if(!_hlsInstance){
+                                                _hlsInstance = new window.Hls({maxBufferLength: 30});
+                                                try { _hlsInstance.attachMedia(el); } catch(err){}
+                                                try {
+                                                    _hlsInstance.on(window.Hls.Events.ERROR, function(ev, data){
+                                                        try {
+                                                            if(data && data.fatal){
+                                                                if(data.type === window.Hls.ErrorTypes.NETWORK_ERROR){
+                                                                    try { _hlsInstance.startLoad(); } catch(err2){}
+                                                                } else if(data.type === window.Hls.ErrorTypes.MEDIA_ERROR){
+                                                                    try { _hlsInstance.recoverMediaError(); } catch(err2){}
+                                                                }
+                                                            }
+                                                        } catch(err2){}
+                                                    });
+                                                } catch(err){}
+                                            } else {
+                                                try {
+                                                    if(!_hlsInstance.media){
+                                                        _hlsInstance.attachMedia(el);
+                                                    }
+                                                } catch(err){}
+                                            }
+                                            try { _hlsInstance.loadSource(url); } catch(err){}
+                                            return;
+                                        }
+                                        _hlsActive = false;
+                                        _nativeSet.call(el, url);
+                                        _hlsNativeSrc = url;
+                                        return;
+                                    }
+                                    if(_hlsActive && _hlsInstance){
+                                        try { _hlsInstance.detachMedia(); } catch(err){}
+                                        _hlsActive = false;
+                                    }
+                                    _nativeSet.call(el, url);
+                                    _hlsNativeSrc = url;
+                                } catch(err){
+                                    try { if(_nativeSet) _nativeSet.call(el, url); } catch(err2){}
+                                }
+                            }
+                        });
+                    }
+                }
+            } catch(e){}
+            return el;
+        };
+    } catch(e){}
     const webamp = new Webamp({
         availableSkins: _skins,
         initialSkin: _savedSkinUrl ? {url: _savedSkinUrl} : undefined,
