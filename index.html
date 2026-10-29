@@ -622,6 +622,122 @@
                 _durObs.observe(_webampRoot, {childList:true, characterData:true, subtree:true});
             }
         } catch(e){}
+        try {
+            var _menuDict = {
+                'Webamp...': 'Về Webamp...',
+                'Play': 'Phát',
+                'Main Window': 'Cửa sổ chính',
+                'Equalizer': 'Bộ chỉnh âm',
+                'Playlist Editor': 'Soạn Playlist',
+                'Skins': 'Giao diện',
+                'Options': 'Tùy chọn',
+                'Playback': 'Phát lại',
+                'Exit': 'Thoát',
+                'File...': 'Tập tin...',
+                'Load Skin...': 'Mở Skin...',
+                'Time elapsed': 'Thời gian đã phát',
+                'Time remaining': 'Thời gian còn lại',
+                'Double Size': 'Cỡ gấp đôi',
+                'Repeat': 'Lặp lại',
+                'Shuffle': 'Ngẫu nhiên',
+                'Previous': 'Bài trước',
+                'Pause': 'Tạm dừng',
+                'Stop': 'Dừng',
+                'Next': 'Bài tiếp',
+                'Back 5 seconds': 'Lùi 5 giây',
+                'Fwd 5 seconds': 'Tới 5 giây',
+                '10 tracks back': 'Lùi 10 bài',
+                '10 tracks fwd': 'Tới 10 bài',
+                'Load': 'Mở',
+                'Save': 'Lưu',
+                'Classical': 'Cổ điển',
+                'Laptop speakers/headphones': 'Loa laptop/Tai nghe',
+                'Large hall': 'Hội trường lớn',
+                'Soft': 'Nhẹ nhàng',
+                'Full Bass': 'Bass mạnh',
+                'Soft Rock': 'Rock nhẹ',
+                'Full Treble': 'Treble mạnh',
+                'Full Bass & Treble': 'Bass & Treble mạnh',
+                'Live': 'Trực tiếp',
+                'From Eqf...': 'Từ Eqf...',
+                'ADD FILE': 'THÊM TẬP TIN',
+                'Add File': 'Thêm tập tin',
+                'ADD DIR': 'THÊM THƯ MỤC',
+                'Add Dir': 'Thêm thư mục',
+                'ADD URL': 'THÊM ĐỊA CHỈ',
+                'Add URL': 'Thêm địa chỉ',
+                'REM SEL': 'XÓA MỤC ĐÃ CHỌN',
+                'Rem Sel': 'Xóa mục đã chọn',
+                'REM ALL': 'XÓA TẤT CẢ',
+                'Rem All': 'Xóa tất cả',
+                'REM MISSING': 'XÓA MỤC THIẾU',
+                'Rem Missing': 'Xóa mục thiếu',
+                'CROP': 'GIỮ MỤC ĐÃ CHỌN',
+                'Crop': 'Giữ mục đã chọn',
+                'SEL INV': 'ĐẢO NGƯỢC LỰA CHỌN',
+                'Sel Inv': 'Đảo ngược lựa chọn',
+                'INV': 'ĐẢO NGƯỢC',
+                'Inv': 'Đảo ngược',
+                'SEL ALL': 'CHỌN TẤT CẢ',
+                'Sel All': 'Chọn tất cả',
+                'SEL NONE': 'BỎ CHỌN TẤT CẢ',
+                'Sel None': 'Bỏ chọn tất cả',
+                'SORT': 'SẮP XẾP',
+                'Sort': 'Sắp xếp',
+                'REV': 'ĐẢO THỨ TỰ',
+                'Rev': 'Đảo thứ tự',
+                'RAND': 'XÁO TRỘN',
+                'Rand': 'Xáo trộn',
+                'SAVE': 'LƯU',
+                'SAVE LIST': 'LƯU PLAYLIST',
+                'Save List': 'Lưu Playlist',
+                'LOAD': 'MỞ',
+                'LOAD LIST': 'MỞ PLAYLIST',
+                'Load List': 'Mở Playlist'
+            };
+            var _translateNode = function(node){
+                try {
+                    if(!node || node.nodeType !== 3) return;
+                    var p = node.parentNode;
+                    if(p && p.closest && p.closest('.track-cell, .playlist-tracks, .playlist-running-time-display')) return;
+                    var raw = node.nodeValue;
+                    if(!raw) return;
+                    var key = raw.trim();
+                    if(!key) return;
+                    var pre = '';
+                    var post = '';
+                    if(key.charAt(0) === '✓'){ pre = '✓ '; key = key.slice(1).trim(); }
+                    if(key.charAt(key.length - 1) === '▸'){ post = ' ▸'; key = key.slice(0, -1).trim(); }
+                    var tr = _menuDict[key];
+                    if(tr) node.nodeValue = pre + tr + post;
+                } catch(e){}
+            };
+            var _translateTree = function(root){
+                try {
+                    if(!root) return;
+                    if(root.nodeType === 3){ _translateNode(root); return; }
+                    if(root.nodeType === 1){
+                        var ch = root.childNodes;
+                        for(var i = 0; i < ch.length; i++) _translateTree(ch[i]);
+                    }
+                } catch(e){}
+            };
+            var _webampRoot2 = document.getElementById('webamp');
+            if(_webampRoot2){
+                _translateTree(_webampRoot2);
+                var _menuObs = new MutationObserver(function(muts){
+                    for(var i = 0; i < muts.length; i++){
+                        var m = muts[i];
+                        if(m.type === 'characterData'){
+                            _translateNode(m.target);
+                        } else {
+                            for(var j = 0; j < m.addedNodes.length; j++) _translateTree(m.addedNodes[j]);
+                        }
+                    }
+                });
+                _menuObs.observe(_webampRoot2, {childList:true, characterData:true, subtree:true});
+            }
+        } catch(e){}
     });
 </script>
 </body>
