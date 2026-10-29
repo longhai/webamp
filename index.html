@@ -412,50 +412,14 @@
         try {
             let _repeatMode = 0;
             let _repeatSeekAt = 0;
-            let _repeatLamp = null;
-            const _updateRepeatLamp = () => {
+            let _prevTrackId = null;
+            let _manualChangeAt = 0;
+            let _reverting = false;
+            const _updateRepeatIndicator = () => {
                 try {
-                    const mainWin = document.getElementById('main-window');
                     const btn = document.getElementById('repeat');
-                    if(!mainWin || !btn){
-                        if(_repeatLamp) _repeatLamp.style.display = 'none';
-                        return;
-                    }
-                    if(!_repeatLamp || !_repeatLamp.parentNode || _repeatLamp.parentNode !== mainWin){
-                        _repeatLamp = document.createElement('div');
-                        _repeatLamp.style.position = 'absolute';
-                        _repeatLamp.style.width = '7px';
-                        _repeatLamp.style.height = '7px';
-                        _repeatLamp.style.borderRadius = '50%';
-                        _repeatLamp.style.pointerEvents = 'none';
-                        _repeatLamp.style.zIndex = '999';
-                        mainWin.appendChild(_repeatLamp);
-                    }
-                    if(_repeatMode === 0){
-                        _repeatLamp.style.display = 'none';
-                        return;
-                    }
-                    const color = _repeatMode === 1 ? '#00e600' : '#ff8800';
-                    _repeatLamp.style.display = 'block';
-                    _repeatLamp.style.background = color;
-                    _repeatLamp.style.boxShadow = '0 0 6px ' + color;
-                    _repeatLamp.style.left = (btn.offsetLeft + btn.offsetWidth - 9) + 'px';
-                    _repeatLamp.style.top = (btn.offsetTop + 1) + 'px';
-                } catch(e){}
-            };
-            const _syncRepeatState = () => {
-                try {
-                    const st = webamp.store.getState();
-                    const rep = !!(st.media && st.media.repeat);
-                    if(rep && _repeatMode === 0){
-                        _repeatMode = 1;
-                        _updateRepeatLamp();
-                    } else if(!rep && _repeatMode !== 0){
-                        _repeatMode = 0;
-                        _updateRepeatLamp();
-                    } else {
-                        _updateRepeatLamp();
-                    }
+                    if(!btn) return;
+                    btn.style.filter = _repeatMode === 2 ? 'hue-rotate(270deg)' : '';
                 } catch(e){}
             };
             document.addEventListener('click', (e) => {
@@ -465,7 +429,7 @@
                     e.preventDefault();
                     e.stopPropagation();
                     _repeatMode = (_repeatMode + 1) % 3;
-                    _updateRepeatLamp();
+                    _updateRepeatIndicator();
                     try {
                         const st = webamp.store.getState();
                         const rep = !!(st.media && st.media.repeat);
@@ -474,24 +438,45 @@
                     } catch(err){}
                 } catch(err){}
             }, true);
+            document.addEventListener('click', (e) => {
+                try {
+                    const nav = e.target && e.target.closest ? e.target.closest('#next, #previous, .playlist-track') : null;
+                    if(nav) _manualChangeAt = Date.now();
+                } catch(err){}
+            }, true);
             webamp.store.subscribe(() => {
                 try {
                     const st = webamp.store.getState();
                     const rep = !!(st.media && st.media.repeat);
                     if(rep && _repeatMode === 0){
                         _repeatMode = 1;
-                        _updateRepeatLamp();
+                        _updateRepeatIndicator();
                         return;
                     }
                     if(!rep && _repeatMode !== 0){
                         _repeatMode = 0;
-                        _updateRepeatLamp();
+                        _updateRepeatIndicator();
                         return;
                     }
-                    _updateRepeatLamp();
+                    _updateRepeatIndicator();
+                    const cur = st.playlist && st.playlist.currentTrack;
+                    if(_prevTrackId === null){
+                        _prevTrackId = cur;
+                    } else if(cur !== _prevTrackId){
+                        if(_reverting){
+                            _prevTrackId = cur;
+                            _reverting = false;
+                        } else if(_repeatMode === 2 && Date.now() - _manualChangeAt > 2000){
+                            const back = _prevTrackId;
+                            _reverting = true;
+                            webamp.store.dispatch({type:'PLAY_TRACK', id:back});
+                            return;
+                        } else {
+                            _prevTrackId = cur;
+                        }
+                    }
                     if(_repeatMode !== 2) return;
                     if(st.media.status !== 'PLAYING') return;
-                    const cur = st.playlist && st.playlist.currentTrack;
                     if(cur === null || cur === undefined) return;
                     const tr = st.tracks && st.tracks[cur];
                     const dur = tr && tr.duration;
@@ -505,7 +490,7 @@
                     webamp.store.dispatch({type:'SEEK_TO_PERCENT_COMPLETE', percent:0});
                 } catch(e){}
             });
-            _updateRepeatLamp();
+            _updateRepeatIndicator();
         } catch(e){}
         try {
             webamp.store.dispatch({type:'ENABLE_MILKDROP', open:false});
