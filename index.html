@@ -629,6 +629,11 @@
                 _durObs.observe(_webampRoot, {childList:true, characterData:true, subtree:true});
             }
         } catch(e){}
+        try {
+            var _swipeStyle = document.createElement('style');
+            _swipeStyle.textContent = '#playlist, #playlist *, .playlist-track { touch-action: pan-y !important; }';
+            document.head.appendChild(_swipeStyle);
+        } catch(e){}
     });
 </script>
 </body>
