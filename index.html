@@ -594,46 +594,6 @@
             webamp.store.dispatch({type:'ENABLE_MILKDROP', open:false});
             webamp.store.dispatch({type:'SET_MILKDROP_DESKTOP', enabled:true});
         } catch(e){}
-        try {
-            var _fixDurText = function(node){
-                try {
-                    if(!node) return;
-                    if(node.nodeType === 3){
-                        var t = node.nodeValue;
-                        if(t && /Infinity/i.test(t)){
-                            var nt = t.replace(/\/Infinity[0-9A-Za-z:]*/gi, '').replace(/Infinity[0-9A-Za-z:]*/gi, '0:00');
-                            if(nt !== t) node.nodeValue = nt;
-                        } else if(t && t.indexOf('NaN') !== -1 && t.indexOf(':') !== -1){
-                            var nt2 = t.replace(/\bNaN(?::\bNaN\b)*/g, '0:00');
-                            if(nt2 !== t) node.nodeValue = nt2;
-                        }
-                    } else if(node.nodeType === 1){
-                        var ch = node.childNodes;
-                        for(var i = 0; i < ch.length; i++) _fixDurText(ch[i]);
-                    }
-                } catch(e){}
-            };
-            var _webampRoot = document.getElementById('webamp');
-            if(_webampRoot){
-                _fixDurText(_webampRoot);
-                var _durObs = new MutationObserver(function(muts){
-                    for(var i = 0; i < muts.length; i++){
-                        var m = muts[i];
-                        if(m.type === 'characterData'){
-                            _fixDurText(m.target);
-                        } else {
-                            for(var j = 0; j < m.addedNodes.length; j++) _fixDurText(m.addedNodes[j]);
-                        }
-                    }
-                });
-                _durObs.observe(_webampRoot, {childList:true, characterData:true, subtree:true});
-            }
-        } catch(e){}
-        try {
-            var _swipeStyle = document.createElement('style');
-            _swipeStyle.textContent = '#playlist, #playlist *, .playlist-track { touch-action: pan-y !important; }';
-            document.head.appendChild(_swipeStyle);
-        } catch(e){}
     });
 </script>
 </body>
