@@ -50,6 +50,28 @@
     let _shakaPlayer = null;
     let _shakaActive = false;
     let _shakaPolyfillDone = false;
+    let _dbgEl = null;
+    function _dbg(msg){
+        try{
+            if(!_dbgEl){
+                _dbgEl = document.createElement('div');
+                _dbgEl.id = 'shaka-debug';
+                _dbgEl.style.position = 'fixed';
+                _dbgEl.style.left = '0px';
+                _dbgEl.style.bottom = '0px';
+                _dbgEl.style.width = '100%';
+                _dbgEl.style.background = '#000';
+                _dbgEl.style.color = '#fff';
+                _dbgEl.style.fontSize = '12px';
+                _dbgEl.style.padding = '6px';
+                _dbgEl.style.zIndex = '10000';
+                _dbgEl.style.whiteSpace = 'pre-wrap';
+                document.body.appendChild(_dbgEl);
+            }
+            _dbgEl.textContent = msg;
+        }catch(e){}
+    }
+    try{ setTimeout(function(){ _dbg('Shaka debug: trang da load, shaka=' + (typeof window.shaka) + ' player=' + (window.shaka && window.shaka.Player ? 'co' : 'khong')); }, 500); }catch(e){}
     function _isShakaAudio(url){
         try{
             if(!url || typeof url !== 'string') return false;
@@ -95,6 +117,7 @@
                                 try {
                                     if(_isShakaAudio(url) && window.shaka && window.shaka.Player){
                                         _shakaActive = true;
+                                        _dbg('Shaka: bat dau load ' + url);
                                         _hlsNativeSrc = url;
                                         try{
                                             if(_hlsActive && _hlsInstance){ try{ _hlsInstance.detachMedia(); }catch(err){} _hlsActive = false; }
@@ -113,8 +136,8 @@
                                                 try{ _shakaPlayer.configure({manifest:{disableVideo:true, disableText:true, disableThumbnails:true}}); }catch(err){}
                                             }
                                             try{
-                                                const pr = _shakaPlayer.load(url);
-                                                if(pr && pr.catch) pr.catch(function(){});
+                                                const pr = _shakaPlayer.load(url); _dbg('Shaka: dang load, supported=' + (window.shaka.Player.isBrowserSupported ? window.shaka.Player.isBrowserSupported() : '?')); try{ if(pr && pr.then) pr.then(function(){ _dbg('Shaka: load xong'); }); }catch(err){}
+                                                if(pr && pr.catch) pr.catch(function(err){ try{ _dbg('Shaka LOI: ' + (err && err.code ? err.code : '') + ' ' + (err && err.message ? err.message : err)); }catch(e){} });
                                             }catch(err){}
                                         }catch(err){}
                                         return;
@@ -199,6 +222,17 @@
             }
         }
     });
+    try{
+        setInterval(function(){
+            try{
+                if(!_shakaActive) return;
+                const a = _hlsAudio;
+                if(!a) return;
+                const buf = a.buffered && a.buffered.length ? (a.buffered.end(a.buffered.length-1) - a.buffered.start(0)).toFixed(1) : '0';
+                _dbg('Shaka dang chay: time=' + (a.currentTime ? a.currentTime.toFixed(1) : '0') + ' paused=' + a.paused + ' vol=' + a.volume + ' muted=' + a.muted + ' ready=' + a.readyState + ' buffered=' + buf + ' src=' + (a.src ? a.src.slice(0,40) : ''));
+            }catch(e){}
+        }, 1000);
+    }catch(e){}
     let __zoomed = false;
     function applyZoom(){
         const w = document.getElementById('webamp');
