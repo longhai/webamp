@@ -410,6 +410,104 @@
             });
         } catch(e){}
         try {
+            let _repeatMode = 0;
+            let _repeatSeekAt = 0;
+            let _repeatLamp = null;
+            const _updateRepeatLamp = () => {
+                try {
+                    const mainWin = document.getElementById('main-window');
+                    const btn = document.getElementById('repeat');
+                    if(!mainWin || !btn){
+                        if(_repeatLamp) _repeatLamp.style.display = 'none';
+                        return;
+                    }
+                    if(!_repeatLamp || !_repeatLamp.parentNode || _repeatLamp.parentNode !== mainWin){
+                        _repeatLamp = document.createElement('div');
+                        _repeatLamp.style.position = 'absolute';
+                        _repeatLamp.style.width = '7px';
+                        _repeatLamp.style.height = '7px';
+                        _repeatLamp.style.borderRadius = '50%';
+                        _repeatLamp.style.pointerEvents = 'none';
+                        _repeatLamp.style.zIndex = '999';
+                        mainWin.appendChild(_repeatLamp);
+                    }
+                    if(_repeatMode === 0){
+                        _repeatLamp.style.display = 'none';
+                        return;
+                    }
+                    const color = _repeatMode === 1 ? '#00e600' : '#ff8800';
+                    _repeatLamp.style.display = 'block';
+                    _repeatLamp.style.background = color;
+                    _repeatLamp.style.boxShadow = '0 0 6px ' + color;
+                    _repeatLamp.style.left = (btn.offsetLeft + btn.offsetWidth - 9) + 'px';
+                    _repeatLamp.style.top = (btn.offsetTop + 1) + 'px';
+                } catch(e){}
+            };
+            const _syncRepeatState = () => {
+                try {
+                    const st = webamp.store.getState();
+                    const rep = !!(st.media && st.media.repeat);
+                    if(rep && _repeatMode === 0){
+                        _repeatMode = 1;
+                        _updateRepeatLamp();
+                    } else if(!rep && _repeatMode !== 0){
+                        _repeatMode = 0;
+                        _updateRepeatLamp();
+                    } else {
+                        _updateRepeatLamp();
+                    }
+                } catch(e){}
+            };
+            document.addEventListener('click', (e) => {
+                try {
+                    const btn = e.target && e.target.closest ? e.target.closest('#repeat') : null;
+                    if(!btn) return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    _repeatMode = (_repeatMode + 1) % 3;
+                    _updateRepeatLamp();
+                    try {
+                        const st = webamp.store.getState();
+                        const rep = !!(st.media && st.media.repeat);
+                        if(_repeatMode === 0 && rep) webamp.store.dispatch({type:'TOGGLE_REPEAT'});
+                        if(_repeatMode !== 0 && !rep) webamp.store.dispatch({type:'TOGGLE_REPEAT'});
+                    } catch(err){}
+                } catch(err){}
+            }, true);
+            webamp.store.subscribe(() => {
+                try {
+                    const st = webamp.store.getState();
+                    const rep = !!(st.media && st.media.repeat);
+                    if(rep && _repeatMode === 0){
+                        _repeatMode = 1;
+                        _updateRepeatLamp();
+                        return;
+                    }
+                    if(!rep && _repeatMode !== 0){
+                        _repeatMode = 0;
+                        _updateRepeatLamp();
+                        return;
+                    }
+                    _updateRepeatLamp();
+                    if(_repeatMode !== 2) return;
+                    if(st.media.status !== 'PLAYING') return;
+                    const cur = st.playlist && st.playlist.currentTrack;
+                    if(cur === null || cur === undefined) return;
+                    const tr = st.tracks && st.tracks[cur];
+                    const dur = tr && tr.duration;
+                    if(!dur || dur <= 0) return;
+                    const el = st.media.timeElapsed;
+                    if(typeof el !== 'number') return;
+                    if(el < dur - 0.5) return;
+                    const now = Date.now();
+                    if(now - _repeatSeekAt < 2000) return;
+                    _repeatSeekAt = now;
+                    webamp.store.dispatch({type:'SEEK_TO_PERCENT_COMPLETE', percent:0});
+                } catch(e){}
+            });
+            _updateRepeatLamp();
+        } catch(e){}
+        try {
             webamp.store.dispatch({type:'ENABLE_MILKDROP', open:false});
             webamp.store.dispatch({type:'SET_MILKDROP_DESKTOP', enabled:true});
         } catch(e){}
